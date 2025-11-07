@@ -29,9 +29,13 @@ fi
 echo "Extracted to: ${SLANG_DIR}"
 } >&2
 SLANG_DIR=$(cd slang_dir && pwd)
+
 if command -v cygpath &> /dev/null; then
   SLANG_DIR=$(cygpath -w "$SLANG_DIR")
+  echo "SLANG_DIR=${SLANG_DIR}"
+  echo "PATH=${SLANG_DIR}\lib;${PATH}"
+else
+  echo "SLANG_DIR=${SLANG_DIR}"
+  echo "LD_LIBRARY_PATH=${SLANG_DIR}/lib:${LD_LIBRARY_PATH}"
+  echo "DYLD_LIBRARY_PATH=${SLANG_DIR}/lib:${DYLD_LIBRARY_PATH}"
 fi
-echo "SLANG_DIR=${SLANG_DIR}"
-echo "LD_LIBRARY_PATH=${SLANG_DIR}/lib:${LD_LIBRARY_PATH}"
-echo "DYLD_LIBRARY_PATH=${SLANG_DIR}/lib:${DYLD_LIBRARY_PATH}"
