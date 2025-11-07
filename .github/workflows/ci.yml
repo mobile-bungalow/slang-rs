@@ -58,9 +58,7 @@ jobs:
         run: echo "${{ env.SLANG_DIR }}\lib" >> $env:GITHUB_PATH
 
       - name: Build
-        shell: bash
         run: cargo build --verbose
 
       - name: Run tests
-        shell: bash
         run: cargo test --verbose
