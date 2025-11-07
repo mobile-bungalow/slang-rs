@@ -53,6 +53,10 @@ jobs:
         run: |
           ./scripts/download-slang.sh "${{ env.SLANG_VERSION }}" "${{ matrix.platform }}" >> $GITHUB_ENV
 
+      - name: Add Slang to PATH (Windows)
+        if: runner.os == 'Windows'
+        run: echo "${{ env.SLANG_DIR }}\lib" >> $env:GITHUB_PATH
+
       - name: Build
         shell: bash
         run: cargo build --verbose
