@@ -24,3 +24,5 @@ echo "Extracted to: ${SLANG_DIR}"
 } >&2
 SLANG_DIR=$(cd slang_dir && pwd)
 echo "SLANG_DIR=${SLANG_DIR}"
+echo "LD_LIBRARY_PATH=${SLANG_DIR}/lib:${LD_LIBRARY_PATH}"
+echo "DYLD_LIBRARY_PATH=${SLANG_DIR}/lib:${DYLD_LIBRARY_PATH}"
