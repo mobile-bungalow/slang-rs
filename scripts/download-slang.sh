@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-
+{
 VERSION="${1:-}"
 PLATFORM="${2:-}"
 
@@ -22,6 +22,7 @@ mv slang_dir_tmp/*/* slang_dir/
 rm -rf slang_dir_tmp slang-release.zip
 
 SLANG_DIR=$(cd slang_dir && pwd)
-
 echo "Extracted to: ${SLANG_DIR}"
+} >&2
+SLANG_DIR=$(cd slang_dir && pwd)
 echo "SLANG_DIR=${SLANG_DIR}"
