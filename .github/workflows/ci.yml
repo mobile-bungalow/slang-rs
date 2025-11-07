@@ -55,7 +55,7 @@ jobs:
 
       - name: Add Slang to PATH (Windows)
         if: runner.os == 'Windows'
-        run: echo "${{ env.SLANG_DIR }}\lib" >> $env:GITHUB_PATH
+        run: echo "${{ env.SLANG_DIR }}\bin" >> $env:GITHUB_PATH
 
       - name: Build
         run: cargo build --verbose
