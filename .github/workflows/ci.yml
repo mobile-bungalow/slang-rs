@@ -54,7 +54,9 @@ jobs:
           ./scripts/download-slang.sh "${{ env.SLANG_VERSION }}" "${{ matrix.platform }}" >> $GITHUB_ENV
 
       - name: Build
+        shell: bash
         run: cargo build --verbose
 
       - name: Run tests
+        shell: bash
         run: cargo test --verbose
