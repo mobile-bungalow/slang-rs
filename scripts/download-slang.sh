@@ -20,9 +20,18 @@ unzip -q slang-release.zip -d slang_dir
 rm -rf slang-release.zip
 
 SLANG_DIR=$(cd slang_dir && pwd)
+
+# windows needs to use cygpath to get proper separators.
+if command -v cygpath &> /dev/null; then
+  SLANG_DIR=$(cygpath -w "$SLANG_DIR")
+fi
+
 echo "Extracted to: ${SLANG_DIR}"
 } >&2
 SLANG_DIR=$(cd slang_dir && pwd)
+if command -v cygpath &> /dev/null; then
+  SLANG_DIR=$(cygpath -w "$SLANG_DIR")
+fi
 echo "SLANG_DIR=${SLANG_DIR}"
 echo "LD_LIBRARY_PATH=${SLANG_DIR}/lib:${LD_LIBRARY_PATH}"
 echo "DYLD_LIBRARY_PATH=${SLANG_DIR}/lib:${DYLD_LIBRARY_PATH}"
