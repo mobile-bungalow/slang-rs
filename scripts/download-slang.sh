@@ -16,10 +16,8 @@ echo "URL: ${URL}"
 curl -L -o "slang-release.zip" "$URL"
 
 echo "Extracting..."
-mkdir -p slang_dir
-unzip -q slang-release.zip -d slang_dir_tmp
-mv slang_dir_tmp/*/* slang_dir/
-rm -rf slang_dir_tmp slang-release.zip
+unzip -q slang-release.zip -d slang_dir
+rm -rf slang-release.zip
 
 SLANG_DIR=$(cd slang_dir && pwd)
 echo "Extracted to: ${SLANG_DIR}"
