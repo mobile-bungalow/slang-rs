@@ -18,7 +18,7 @@ env:
 
 jobs:
   build-and-test:
-    name: ${{ matrix.os }} - ${{ matrix.rust }}
+    name: ${{ matrix.os }} - ${{ matrix.rust }} - ${{ matrix.link_type }}
     runs-on: ${{ matrix.os }}
 
     strategy:
@@ -26,6 +26,7 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
         rust: [stable]
+        link_type: [static, dylib]
         include:
           - os: ubuntu-latest
             platform: linux-x86_64
@@ -56,6 +57,13 @@ jobs:
       - name: Add Slang to PATH (Windows)
         if: runner.os == 'Windows'
         run: echo "${{ env.SLANG_DIR }}\bin" >> $env:GITHUB_PATH
+
+      - name: Set link type environment variable
+        shell: bash
+        run: |
+          if [ "${{ matrix.link_type }}" = "static" ]; then
+            echo "SLANG_LINK_STATIC=1" >> $GITHUB_ENV
+          fi
 
       - name: Build
         run: cargo build --verbose

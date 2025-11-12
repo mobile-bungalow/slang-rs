@@ -1,16 +1,17 @@
-
 //////
 //
 // Imports
 //
 
 // Standard library
-use std::{ffi::c_void, mem::ManuallyDrop, sync::atomic::{AtomicU32, Ordering}};
+use std::{
+	ffi::c_void,
+	mem::ManuallyDrop,
+	sync::atomic::{AtomicU32, Ordering},
+};
 
 // Local imports
-use crate::{*, com_impls::*};
-
-
+use crate::{com_impls::*, *};
 
 //////
 //
@@ -19,19 +20,19 @@ use crate::{*, com_impls::*};
 
 /// The trait of implementing [`ISlangBlob`](sys::ISlangBlob). If the `com_impls` feature is enabled, then the standard
 /// [`Blob`] type will also implement this trait.
-pub trait ImplementsISlangBlob: Interface
-{
+pub trait ImplementsISlangBlob: Interface {
 	#[inline(always)]
-	fn as_slice (&self) -> &[u8] {
+	fn as_slice(&self) -> &[u8] {
 		unsafe {
 			// SAFETY: The ISlangBlob interface guarantees valid buffer parameters
 			std::slice::from_raw_parts(
-				self.get_buffer_pointer() as *const u8, self.get_buffer_size()
+				self.get_buffer_pointer() as *const u8,
+				self.get_buffer_size(),
 			)
 		}
 	}
 
-	fn get_buffer_pointer (&self) -> *const c_void;
+	fn get_buffer_pointer(&self) -> *const c_void;
 
 	fn get_buffer_size(&self) -> usize;
 }
@@ -52,8 +53,6 @@ impl ImplementsISlangBlob for Blob {
 	}
 }
 
-
-
 //////
 //
 // Structs
@@ -71,10 +70,9 @@ pub struct VecBlob {
 	/// The actual blob.
 	data: Vec<u8>,
 }
-impl VecBlob
-{
+impl VecBlob {
 	///
-	pub fn from_vec (data: Vec<u8>) -> *mut VecBlob {
+	pub fn from_vec(data: Vec<u8>) -> *mut VecBlob {
 		// Allocate our object and return it casted to ISlangBlob pointer type
 		let mut boxed = Box::new(VecBlob {
 			vtable_: &VTABLE,
@@ -88,17 +86,17 @@ impl VecBlob
 	}
 
 	///
-	pub fn from_slice (data: &[u8]) -> *mut VecBlob {
+	pub fn from_slice(data: &[u8]) -> *mut VecBlob {
 		Self::from_vec(data.to_owned())
 	}
 
 	///
-	pub fn from_string (s: String) -> *mut VecBlob {
+	pub fn from_string(s: String) -> *mut VecBlob {
 		Self::from_vec(s.into_bytes())
 	}
 
 	///
-	pub fn from_str (s: &str) -> *mut VecBlob {
+	pub fn from_str(s: &str) -> *mut VecBlob {
 		Self::from_vec(s.as_bytes().to_owned())
 	}
 
@@ -129,7 +127,7 @@ unsafe impl Interface for VecBlob {
 }
 impl ImplementsISlangBlob for VecBlob {
 	#[inline(always)]
-	fn get_buffer_pointer (&self) -> *const std::ffi::c_void {
+	fn get_buffer_pointer(&self) -> *const std::ffi::c_void {
 		self.data.as_ptr() as *const std::ffi::c_void
 	}
 
@@ -139,8 +137,6 @@ impl ImplementsISlangBlob for VecBlob {
 	}
 }
 
-
-
 //////
 //
 // COM endpoint implementations
@@ -149,7 +145,7 @@ impl ImplementsISlangBlob for VecBlob {
 ////
 // Interface: IUnknown
 
-unsafe extern "C" fn query_interface (
+unsafe extern "C" fn query_interface(
 	this: *mut sys::ISlangUnknown,
 	uuid: *const sys::SlangUUID,
 	out_object: *mut *mut c_void,
@@ -170,24 +166,24 @@ unsafe extern "C" fn query_interface (
 	if let Some(ptr) = matched {
 		// Increase refcount for the returned interface
 		obj.ref_count.fetch_add(1, Ordering::Relaxed);
-		unsafe { *out_object = ptr; }
+		unsafe {
+			*out_object = ptr;
+		}
 		S_OK
-	}
-	else {
+	} else {
 		unsafe { *out_object = std::ptr::null_mut() };
 		// SLANG_E_NO_INTERFACE
 		E_NOINTERFACE
 	}
 }
 
-unsafe extern "C" fn add_ref (this: *mut sys::ISlangUnknown) -> u32 {
+unsafe extern "C" fn add_ref(this: *mut sys::ISlangUnknown) -> u32 {
 	let obj = VecBlob::this(this);
 	let prev = obj.ref_count.fetch_add(1, Ordering::Relaxed);
 	prev + 1
 }
 
-unsafe extern "C" fn release (this: *mut sys::ISlangUnknown) -> u32
-{
+unsafe extern "C" fn release(this: *mut sys::ISlangUnknown) -> u32 {
 	let obj = VecBlob::this(this);
 	let prev = obj.ref_count.fetch_sub(1, Ordering::Release);
 	if prev == 1 {
@@ -200,10 +196,9 @@ unsafe extern "C" fn release (this: *mut sys::ISlangUnknown) -> u32
 		};
 		0
 	} else {
-		prev-1
+		prev - 1
 	}
 }
-
 
 ////
 // Interface: ISlangBlob
@@ -217,7 +212,6 @@ unsafe extern "C" fn get_buffer_size(this: *mut c_void) -> usize {
 	let obj = VecBlob::this_void(this);
 	obj.data.len()
 }
-
 
 ////
 // Interface binding

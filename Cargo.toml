@@ -15,7 +15,7 @@ debug = true
 shader-slang-sys = {path="slang-sys", version="0.1.0"}
 
 [features]
-default = []
+default = ["build_slang_from_source", "force_on_windows"]
 
 ## Add serde support to many API objects
 serde = ["shader-slang-sys/serde"]

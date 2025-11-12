@@ -2,9 +2,9 @@
 
 pub mod reflection;
 
-#[cfg(feature="com_impls")]
+#[cfg(feature = "com_impls")]
 mod com_impls;
-#[cfg(feature="com_impls")]
+#[cfg(feature = "com_impls")]
 pub use com_impls::{ComPtr, VecBlob};
 
 #[cfg(test)]
@@ -312,7 +312,7 @@ impl Session {
 		}
 	}
 
-	#[cfg(feature="com_impls")]
+	#[cfg(feature = "com_impls")]
 	#[inline(always)]
 	pub fn load_module_from_ir_blob(
 		&self,
@@ -323,7 +323,7 @@ impl Session {
 		self.load_module_from_ir_blob_impl(module_name, path, ir_blob)
 	}
 
-	#[cfg(not(feature="com_impls"))]
+	#[cfg(not(feature = "com_impls"))]
 	#[inline(always)]
 	pub fn load_module_from_ir_blob(
 		&self,
@@ -636,9 +636,10 @@ impl Module {
 		let mut out_blob = null_mut();
 		let status_code = vcall!(self, serialize(&mut out_blob));
 		if status_code == 0 {
-			Ok(Blob(IUnknown(std::ptr::NonNull::new(out_blob as *mut _).expect(
-				"Slang returned a null pointer despite reporting success"
-			))))
+			Ok(Blob(IUnknown(
+				std::ptr::NonNull::new(out_blob as *mut _)
+					.expect("Slang returned a null pointer despite reporting success"),
+			)))
 		} else {
 			Err(Error::Code(status_code))
 		}
@@ -646,8 +647,12 @@ impl Module {
 
 	pub fn write_to_file(&self, filename: impl AsRef<std::path::Path>) -> Result<()> {
 		let filename = CString::new(
-			filename.as_ref().to_str().expect("filename argument must be CString-representable")
-		).unwrap();
+			filename
+				.as_ref()
+				.to_str()
+				.expect("filename argument must be CString-representable"),
+		)
+		.unwrap();
 		let status_code = vcall!(self, writeToFile(filename.as_ptr()));
 		if status_code == 0 {
 			Ok(())
@@ -803,7 +808,7 @@ macro_rules! option {
 	};
 }
 
-#[derive(Default,Clone)]
+#[derive(Default, Clone)]
 pub struct CompilerOptions {
 	strings: Vec<CString>,
 	options: Vec<sys::slang_CompilerOptionEntry>,
