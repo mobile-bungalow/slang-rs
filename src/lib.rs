@@ -7,6 +7,10 @@ mod com_impls;
 #[cfg(feature = "com_impls")]
 pub use com_impls::{ComPtr, VecBlob};
 
+// Re-export derive macros when the derive feature is enabled
+#[cfg(feature = "derive")]
+pub use slang_derive::SlangAttribute;
+
 #[cfg(test)]
 mod tests;
 
@@ -49,6 +53,7 @@ const fn uuid(data1: u32, data2: u16, data3: u16, data4: [u8; 8]) -> UUID {
 pub enum Error {
 	Code(sys::SlangResult),
 	Blob(Blob),
+	InvalidString(std::ffi::NulError),
 }
 
 impl std::fmt::Debug for Error {
@@ -56,6 +61,11 @@ impl std::fmt::Debug for Error {
 		match self {
 			Error::Code(code) => write!(f, "{}", code),
 			Error::Blob(blob) => write!(f, "{}", blob.as_str().unwrap_or_default()),
+			Error::InvalidString(e) => write!(
+				f,
+				"String contains null byte at position {} (CString requires null-terminated strings without interior nulls)",
+				e.nul_position()
+			),
 		}
 	}
 }
@@ -230,14 +240,14 @@ impl GlobalSession {
 		)?)))
 	}
 
-	pub fn find_profile(&self, name: &str) -> ProfileID {
-		let name = CString::new(name).unwrap();
-		ProfileID(vcall!(self, findProfile(name.as_ptr())))
+	pub fn find_profile(&self, name: &str) -> Result<ProfileID> {
+		let name = CString::new(name).map_err(Error::InvalidString)?;
+		Ok(ProfileID(vcall!(self, findProfile(name.as_ptr()))))
 	}
 
-	pub fn find_capability(&self, name: &str) -> CapabilityID {
-		let name = CString::new(name).unwrap();
-		CapabilityID(vcall!(self, findCapability(name.as_ptr())))
+	pub fn find_capability(&self, name: &str) -> Result<CapabilityID> {
+		let name = CString::new(name).map_err(Error::InvalidString)?;
+		Ok(CapabilityID(vcall!(self, findCapability(name.as_ptr()))))
 	}
 
 	pub fn build_tag_string(&self) -> &str {
@@ -262,7 +272,7 @@ unsafe impl Interface for Session {
 
 impl Session {
 	pub fn load_module(&self, name: &str) -> Result<Module> {
-		let name = CString::new(name).unwrap();
+		let name = CString::new(name).map_err(Error::InvalidString)?;
 		let mut diagnostics = null_mut();
 
 		let module = vcall!(self, loadModule(name.as_ptr(), &mut diagnostics));
@@ -285,9 +295,9 @@ impl Session {
 		path: &str,
 		source: &str,
 	) -> Result<Module> {
-		let module_name = CString::new(module_name).unwrap();
-		let path = CString::new(path).unwrap();
-		let source = CString::new(source).unwrap();
+		let module_name = CString::new(module_name).map_err(Error::InvalidString)?;
+		let path = CString::new(path).map_err(Error::InvalidString)?;
+		let source = CString::new(source).map_err(Error::InvalidString)?;
 		let mut diagnostics = null_mut();
 
 		let module = vcall!(
@@ -340,8 +350,8 @@ impl Session {
 		path: &str,
 		ir_blob: &impl Interface,
 	) -> Result<Module> {
-		let module_name = CString::new(module_name).unwrap();
-		let path = CString::new(path).unwrap();
+		let module_name = CString::new(module_name).map_err(Error::InvalidString)?;
+		let path = CString::new(path).map_err(Error::InvalidString)?;
 		let mut diagnostics = null_mut();
 
 		let module = vcall!(
@@ -608,7 +618,7 @@ unsafe impl Downcast<ComponentType> for Module {
 
 impl Module {
 	pub fn find_entry_point_by_name(&self, name: &str) -> Option<EntryPoint> {
-		let name = CString::new(name).unwrap();
+		let name = CString::new(name).ok()?;
 		let mut entry_point = null_mut();
 		vcall!(self, findEntryPointByName(name.as_ptr(), &mut entry_point));
 		Some(EntryPoint(IUnknown(std::ptr::NonNull::new(
@@ -795,14 +805,14 @@ macro_rules! option {
 
 	($name:ident, $func:ident($p_name:ident: &str)) => {
 		#[inline(always)]
-		pub fn $func(self, $p_name: &str) -> Self {
+		pub fn $func(self, $p_name: &str) -> Result<Self> {
 			self.push_str1(CompilerOptionName::$name, $p_name)
 		}
 	};
 
 	($name:ident, $func:ident($p_name1:ident: &str, $p_name2:ident: &str)) => {
 		#[inline(always)]
-		pub fn $func(self, $p_name1: &str, $p_name2: &str) -> Self {
+		pub fn $func(self, $p_name1: &str, $p_name2: &str) -> Result<Self> {
 			self.push_str2(CompilerOptionName::$name, $p_name1, $p_name2)
 		}
 	};
@@ -845,24 +855,24 @@ impl CompilerOptions {
 		self
 	}
 
-	fn push_str1(mut self, name: CompilerOptionName, s0: &str) -> Self {
-		let s0 = CString::new(s0).unwrap();
+	fn push_str1(mut self, name: CompilerOptionName, s0: &str) -> Result<Self> {
+		let s0 = CString::new(s0).map_err(Error::InvalidString)?;
 		let s0_ptr = s0.as_ptr();
 		self.strings.push(s0);
 
-		self.push_strings(name, s0_ptr, null())
+		Ok(self.push_strings(name, s0_ptr, null()))
 	}
 
-	fn push_str2(mut self, name: CompilerOptionName, s0: &str, s1: &str) -> Self {
-		let s0 = CString::new(s0).unwrap();
+	fn push_str2(mut self, name: CompilerOptionName, s0: &str, s1: &str) -> Result<Self> {
+		let s0 = CString::new(s0).map_err(Error::InvalidString)?;
 		let s0_ptr = s0.as_ptr();
 		self.strings.push(s0);
 
-		let s1 = CString::new(s1).unwrap();
+		let s1 = CString::new(s1).map_err(Error::InvalidString)?;
 		let s1_ptr = s1.as_ptr();
 		self.strings.push(s1);
 
-		self.push_strings(name, s0_ptr, s1_ptr)
+		Ok(self.push_strings(name, s0_ptr, s1_ptr))
 	}
 }
 

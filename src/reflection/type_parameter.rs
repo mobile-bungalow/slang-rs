@@ -22,6 +22,9 @@ impl TypeParameter {
 	}
 
 	pub fn constraints(&self) -> impl ExactSizeIterator<Item = &Type> {
-		(0..self.constraint_count()).map(|i| self.constraint_by_index(i).unwrap())
+		(0..self.constraint_count()).map(|i| {
+			self.constraint_by_index(i)
+				.expect("index within constraint_count should always be valid")
+		})
 	}
 }

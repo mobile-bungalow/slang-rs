@@ -22,7 +22,10 @@ impl Generic {
 	}
 
 	pub fn type_parameters(&self) -> impl ExactSizeIterator<Item = &TypeParameter> {
-		(0..self.type_parameter_count()).map(|i| self.type_parameter_by_index(i).unwrap())
+		(0..self.type_parameter_count()).map(|i| {
+			self.type_parameter_by_index(i)
+				.expect("index within type_parameter_count should always be valid")
+		})
 	}
 
 	pub fn value_parameter_count(&self) -> u32 {
@@ -34,7 +37,10 @@ impl Generic {
 	}
 
 	pub fn value_parameters(&self) -> impl ExactSizeIterator<Item = &Variable> {
-		(0..self.value_parameter_count()).map(|i| self.value_parameter_by_index(i).unwrap())
+		(0..self.value_parameter_count()).map(|i| {
+			self.value_parameter_by_index(i)
+				.expect("index within value_parameter_count should always be valid")
+		})
 	}
 
 	pub fn type_parameter_constraint_count(&self, type_param: &Variable) -> u32 {

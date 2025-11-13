@@ -1,5 +1,6 @@
 use super::{
-	EntryPoint, Function, Generic, Type, TypeLayout, TypeParameter, Variable, VariableLayout, rcall,
+	EntryPoint, Function, Generic, ReflectionError, Type, TypeLayout, TypeParameter, Variable,
+	VariableLayout, rcall,
 };
 use crate::{GenericArg, GenericArgType, LayoutRules, sys};
 
@@ -16,7 +17,10 @@ impl Shader {
 	}
 
 	pub fn parameters(&self) -> impl ExactSizeIterator<Item = &VariableLayout> {
-		(0..self.parameter_count()).map(|i| self.parameter_by_index(i).unwrap())
+		(0..self.parameter_count()).map(|i| {
+			self.parameter_by_index(i)
+				.expect("index within parameter_count should always be valid")
+		})
 	}
 
 	pub fn type_parameter_count(&self) -> u32 {
@@ -28,12 +32,21 @@ impl Shader {
 	}
 
 	pub fn type_parameters(&self) -> impl ExactSizeIterator<Item = &TypeParameter> {
-		(0..self.type_parameter_count()).map(|i| self.type_parameter_by_index(i).unwrap())
+		(0..self.type_parameter_count()).map(|i| {
+			self.type_parameter_by_index(i)
+				.expect("index within type_parameter_count should always be valid")
+		})
 	}
 
-	pub fn find_type_parameter_by_name(&self, name: &str) -> Option<&TypeParameter> {
-		let name = std::ffi::CString::new(name).unwrap();
-		rcall!(spReflection_FindTypeParameter(self, name.as_ptr()) as Option<&TypeParameter>)
+	pub fn find_type_parameter_by_name(
+		&self,
+		name: &str,
+	) -> Result<&TypeParameter, ReflectionError> {
+		let cname = std::ffi::CString::new(name).map_err(|e| ReflectionError::InvalidString {
+			position: e.nul_position(),
+		})?;
+		rcall!(spReflection_FindTypeParameter(self, cname.as_ptr()) as Option<&TypeParameter>)
+			.ok_or_else(|| ReflectionError::NotFound(format!("Type parameter '{}'", name)))
 	}
 
 	pub fn entry_point_count(&self) -> u32 {
@@ -45,12 +58,18 @@ impl Shader {
 	}
 
 	pub fn entry_points(&self) -> impl ExactSizeIterator<Item = &EntryPoint> {
-		(0..self.entry_point_count()).map(|i| self.entry_point_by_index(i).unwrap())
+		(0..self.entry_point_count()).map(|i| {
+			self.entry_point_by_index(i)
+				.expect("index within entry_point_count should always be valid")
+		})
 	}
 
-	pub fn find_entry_point_by_name(&self, name: &str) -> Option<&EntryPoint> {
-		let name = std::ffi::CString::new(name).unwrap();
-		rcall!(spReflection_findEntryPointByName(self, name.as_ptr()) as Option<&EntryPoint>)
+	pub fn find_entry_point_by_name(&self, name: &str) -> Result<&EntryPoint, ReflectionError> {
+		let cname = std::ffi::CString::new(name).map_err(|e| ReflectionError::InvalidString {
+			position: e.nul_position(),
+		})?;
+		rcall!(spReflection_findEntryPointByName(self, cname.as_ptr()) as Option<&EntryPoint>)
+			.ok_or_else(|| ReflectionError::NotFound(format!("Entry point '{}'", name)))
 	}
 
 	pub fn global_constant_buffer_binding(&self) -> u64 {
@@ -61,30 +80,50 @@ impl Shader {
 		rcall!(spReflection_getGlobalConstantBufferSize(self))
 	}
 
-	pub fn find_type_by_name(&self, name: &str) -> Option<&Type> {
-		let name = std::ffi::CString::new(name).unwrap();
-		rcall!(spReflection_FindTypeByName(self, name.as_ptr()) as Option<&Type>)
+	pub fn find_type_by_name(&self, name: &str) -> Result<&Type, ReflectionError> {
+		let cname = std::ffi::CString::new(name).map_err(|e| ReflectionError::InvalidString {
+			position: e.nul_position(),
+		})?;
+		rcall!(spReflection_FindTypeByName(self, cname.as_ptr()) as Option<&Type>)
+			.ok_or_else(|| ReflectionError::NotFound(format!("Type '{}'", name)))
 	}
 
-	pub fn find_function_by_name(&self, name: &str) -> Option<&Function> {
-		let name = std::ffi::CString::new(name).unwrap();
-		rcall!(spReflection_FindFunctionByName(self, name.as_ptr()) as Option<&Function>)
+	pub fn find_function_by_name(&self, name: &str) -> Result<&Function, ReflectionError> {
+		let cname = std::ffi::CString::new(name).map_err(|e| ReflectionError::InvalidString {
+			position: e.nul_position(),
+		})?;
+		rcall!(spReflection_FindFunctionByName(self, cname.as_ptr()) as Option<&Function>)
+			.ok_or_else(|| ReflectionError::NotFound(format!("Function '{}'", name)))
 	}
 
-	pub fn find_function_by_name_in_type(&self, ty: &Type, name: &str) -> Option<&Function> {
-		let name = std::ffi::CString::new(name).unwrap();
+	pub fn find_function_by_name_in_type(
+		&self,
+		ty: &Type,
+		name: &str,
+	) -> Result<&Function, ReflectionError> {
+		let cname = std::ffi::CString::new(name).map_err(|e| ReflectionError::InvalidString {
+			position: e.nul_position(),
+		})?;
 		rcall!(
-			spReflection_FindFunctionByNameInType(self, ty as *const _ as *mut _, name.as_ptr())
+			spReflection_FindFunctionByNameInType(self, ty as *const _ as *mut _, cname.as_ptr())
 				as Option<&Function>
 		)
+		.ok_or_else(|| ReflectionError::NotFound(format!("Function '{}' in type", name)))
 	}
 
-	pub fn find_var_by_name_in_type(&self, ty: &Type, name: &str) -> Option<&Variable> {
-		let name = std::ffi::CString::new(name).unwrap();
+	pub fn find_var_by_name_in_type(
+		&self,
+		ty: &Type,
+		name: &str,
+	) -> Result<&Variable, ReflectionError> {
+		let cname = std::ffi::CString::new(name).map_err(|e| ReflectionError::InvalidString {
+			position: e.nul_position(),
+		})?;
 		rcall!(
-			spReflection_FindVarByNameInType(self, ty as *const _ as *mut _, name.as_ptr())
+			spReflection_FindVarByNameInType(self, ty as *const _ as *mut _, cname.as_ptr())
 				as Option<&Variable>
 		)
+		.ok_or_else(|| ReflectionError::NotFound(format!("Variable '{}' in type", name)))
 	}
 
 	pub fn type_layout(&self, ty: &Type, rules: LayoutRules) -> Option<&TypeLayout> {
@@ -138,12 +177,16 @@ impl Shader {
 
 		(!result.is_null()).then(|| {
 			let slice = unsafe { std::slice::from_raw_parts(result as *const u8, len as usize) };
-			std::str::from_utf8(slice).unwrap()
+			std::str::from_utf8(slice)
+				.expect("Slang reflection API should return valid UTF-8 strings")
 		})
 	}
 
 	pub fn hashed_strings(&self) -> impl ExactSizeIterator<Item = &str> {
-		(0..self.hashed_string_count() as usize).map(|i| self.hashed_string(i as u64).unwrap())
+		(0..self.hashed_string_count() as usize).map(|i| {
+			self.hashed_string(i as u64)
+				.expect("index within hashed_string_count should always be valid")
+		})
 	}
 
 	pub fn global_params_type_layout(&self) -> Option<&TypeLayout> {

@@ -43,7 +43,8 @@ impl UserAttribute {
 
 		(!result.is_null()).then(|| {
 			let slice = unsafe { std::slice::from_raw_parts(result as *const u8, len as usize) };
-			std::str::from_utf8(slice).unwrap()
+			std::str::from_utf8(slice)
+				.expect("Slang reflection API should return valid UTF-8 strings")
 		})
 	}
 }

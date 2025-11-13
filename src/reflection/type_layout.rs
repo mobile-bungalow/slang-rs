@@ -37,7 +37,10 @@ impl TypeLayout {
 	}
 
 	pub fn fields(&self) -> impl ExactSizeIterator<Item = &VariableLayout> {
-		(0..self.field_count()).map(|i| self.field_by_index(i).unwrap())
+		(0..self.field_count()).map(|i| {
+			self.field_by_index(i)
+				.expect("index within field_count should always be valid")
+		})
 	}
 
 	pub fn find_field_index_by_name(&self, name: &str) -> i64 {

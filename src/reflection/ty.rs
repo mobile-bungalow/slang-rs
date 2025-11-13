@@ -1,4 +1,4 @@
-use super::{Generic, UserAttribute, Variable, rcall};
+use super::{Generic, ReflectionError, UserAttribute, Variable, rcall};
 use crate::{
 	Blob, Error, IUnknown, ResourceAccess, ResourceShape, Result, ScalarType, TypeKind, succeeded,
 	sys,
@@ -21,7 +21,10 @@ impl Type {
 	}
 
 	pub fn fields(&self) -> impl ExactSizeIterator<Item = &Variable> {
-		(0..self.field_count()).map(|i| self.field_by_index(i).unwrap())
+		(0..self.field_count()).map(|i| {
+			self.field_by_index(i)
+				.expect("index within field_count should always be valid")
+		})
 	}
 
 	pub fn is_array(&self) -> bool {
@@ -97,7 +100,8 @@ impl Type {
 
 		if succeeded(result) && !name.is_null() {
 			Ok(Blob(IUnknown(
-				std::ptr::NonNull::new(name as *mut _).unwrap(),
+				std::ptr::NonNull::new(name as *mut _)
+					.expect("pointer is non-null due to check above"),
 			)))
 		} else {
 			Err(Error::Code(result))
@@ -113,14 +117,24 @@ impl Type {
 	}
 
 	pub fn user_attributes(&self) -> impl ExactSizeIterator<Item = &UserAttribute> {
-		(0..self.user_attribute_count()).map(|i| self.user_attribute_by_index(i).unwrap())
+		(0..self.user_attribute_count()).map(|i| {
+			self.user_attribute_by_index(i)
+				.expect("index within user_attribute_count should always be valid")
+		})
 	}
 
-	pub fn find_user_attribute_by_name(&self, name: &str) -> Option<&UserAttribute> {
-		let name = std::ffi::CString::new(name).unwrap();
+	pub fn find_user_attribute_by_name(
+		&self,
+		name: &str,
+	) -> std::result::Result<&UserAttribute, ReflectionError> {
+		let cname = std::ffi::CString::new(name).map_err(|e| ReflectionError::InvalidString {
+			position: e.nul_position(),
+		})?;
 		rcall!(
-			spReflectionType_FindUserAttributeByName(self, name.as_ptr()) as Option<&UserAttribute>
+			spReflectionType_FindUserAttributeByName(self, cname.as_ptr())
+				as Option<&UserAttribute>
 		)
+		.ok_or_else(|| ReflectionError::NotFound(format!("User attribute '{}'", name)))
 	}
 
 	pub fn generic_container(&self) -> Option<&Generic> {

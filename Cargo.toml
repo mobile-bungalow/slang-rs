@@ -13,12 +13,17 @@ debug = true
 
 [dependencies]
 shader-slang-sys = {path="slang-sys", version="0.1.0"}
+thiserror = "2.0"
+slang-derive = { path = "slang-derive", version = "0.1.0", optional = true }
 
 [features]
 default = ["build_slang_from_source", "force_on_windows"]
 
 ## Add serde support to many API objects
 serde = ["shader-slang-sys/serde"]
+
+## Enable derive macros for reflection types (Deserialize)
+derive = ["dep:slang-derive"]
 
 ## Enable custom, Rust-side implementations for some COM interfaces used by Slang.
 com_impls = []
@@ -52,4 +57,4 @@ build_slang_from_source = ["shader-slang-sys/build_slang_from_source"]
 force_on_windows = ["shader-slang-sys/force_on_windows"]
 
 [workspace]
-members = ["slang-sys"]
+members = ["slang-derive","slang-sys"]

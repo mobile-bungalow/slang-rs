@@ -17,7 +17,7 @@ fn obtain_test_session(
 
 	let target_desc = slang::TargetDesc::default()
 		.format(slang::CompileTarget::Spirv)
-		.profile(global_session.find_profile("glsl_450"));
+		.profile(global_session.find_profile("glsl_450").unwrap());
 
 	let targets = [target_desc];
 	let search_paths_storage = search_paths
@@ -55,7 +55,7 @@ fn compile() {
 
 	let target_desc = slang::TargetDesc::default()
 		.format(slang::CompileTarget::Spirv)
-		.profile(global_session.find_profile("glsl_450"));
+		.profile(global_session.find_profile("glsl_450").unwrap());
 
 	let targets = [target_desc];
 	let search_paths = [search_path.as_ptr()];

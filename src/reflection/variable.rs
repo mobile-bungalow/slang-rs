@@ -1,4 +1,4 @@
-use super::{Generic, Type, UserAttribute, rcall};
+use super::{AttributeError, Generic, ReflectionError, SlangAttribute, Type, UserAttribute, rcall};
 use crate::{GlobalSession, Modifier, ModifierID, succeeded, sys};
 
 #[repr(transparent)]
@@ -26,20 +26,26 @@ impl Variable {
 	}
 
 	pub fn user_attributes(&self) -> impl ExactSizeIterator<Item = &UserAttribute> {
-		(0..self.user_attribute_count()).map(|i| self.user_attribute_by_index(i).unwrap())
+		(0..self.user_attribute_count()).map(|i| {
+			self.user_attribute_by_index(i)
+				.expect("index within user_attribute_count should always be valid")
+		})
 	}
 
 	pub fn find_user_attribute_by_name(
 		&self,
 		global_session: &GlobalSession,
 		name: &str,
-	) -> Option<&UserAttribute> {
-		let name = std::ffi::CString::new(name).unwrap();
+	) -> Result<&UserAttribute, ReflectionError> {
+		let cname = std::ffi::CString::new(name).map_err(|e| ReflectionError::InvalidString {
+			position: e.nul_position(),
+		})?;
 		rcall!(spReflectionVariable_FindUserAttributeByName(
 			self,
 			global_session as *const _ as *mut _,
-			name.as_ptr()
+			cname.as_ptr()
 		) as Option<&UserAttribute>)
+		.ok_or_else(|| ReflectionError::NotFound(format!("User attribute '{}'", name)))
 	}
 
 	pub fn has_default_value(&self) -> bool {
@@ -61,5 +67,26 @@ impl Variable {
 			spReflectionVariable_applySpecializations(self, generic as *const _ as *mut _)
 				as Option<&Variable>
 		)
+	}
+
+	/// Extract a typed attribute from the variable at the given index.
+	///
+	/// This is a convenience method that combines `user_attribute_by_index`
+	/// with `SlangAttribute::from_user_attribute` to directly extract typed
+	/// attributes based on a trait constraint.
+	///
+	/// # Examples
+	/// ```ignore
+	/// #[derive(SlangAttribute)]
+	/// #[slang(name = "Range")]
+	/// struct RangeAttribute { min: f32, max: f32 }
+	///
+	/// let range: RangeAttribute = var.extract_attribute(0)?;
+	/// ```
+	pub fn extract_attribute<T: SlangAttribute>(&self, index: u32) -> Result<T, AttributeError> {
+		let attr = self.user_attribute_by_index(index).ok_or_else(|| {
+			AttributeError::InvalidValue(format!("No attribute at index {}", index))
+		})?;
+		T::from_user_attribute(attr)
 	}
 }

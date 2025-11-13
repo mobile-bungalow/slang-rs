@@ -1,4 +1,4 @@
-use super::{Generic, Type, UserAttribute, Variable, rcall};
+use super::{Generic, ReflectionError, Type, UserAttribute, Variable, rcall};
 use crate::{GlobalSession, Modifier, ModifierID, sys};
 
 #[repr(transparent)]
@@ -22,7 +22,10 @@ impl Function {
 	}
 
 	pub fn parameters(&self) -> impl ExactSizeIterator<Item = &Variable> {
-		(0..self.parameter_count()).map(|i| self.parameter_by_index(i).unwrap())
+		(0..self.parameter_count()).map(|i| {
+			self.parameter_by_index(i)
+				.expect("index within parameter_count should always be valid")
+		})
 	}
 
 	pub fn user_attribute_count(&self) -> u32 {
@@ -34,20 +37,26 @@ impl Function {
 	}
 
 	pub fn user_attributes(&self) -> impl ExactSizeIterator<Item = &UserAttribute> {
-		(0..self.user_attribute_count()).map(|i| self.user_attribute_by_index(i).unwrap())
+		(0..self.user_attribute_count()).map(|i| {
+			self.user_attribute_by_index(i)
+				.expect("index within user_attribute_count should always be valid")
+		})
 	}
 
 	pub fn find_user_attribute_by_name(
 		&self,
 		global_session: &GlobalSession,
 		name: &str,
-	) -> Option<&UserAttribute> {
-		let name = std::ffi::CString::new(name).unwrap();
+	) -> Result<&UserAttribute, ReflectionError> {
+		let cname = std::ffi::CString::new(name).map_err(|e| ReflectionError::InvalidString {
+			position: e.nul_position(),
+		})?;
 		rcall!(spReflectionFunction_FindUserAttributeByName(
 			self,
 			global_session as *const _ as *mut _,
-			name.as_ptr()
+			cname.as_ptr()
 		) as Option<&UserAttribute>)
+		.ok_or_else(|| ReflectionError::NotFound(format!("User attribute '{}'", name)))
 	}
 
 	pub fn find_modifier(&self, id: ModifierID) -> Option<&Modifier> {
@@ -86,6 +95,9 @@ impl Function {
 	}
 
 	pub fn overloads(&self) -> impl ExactSizeIterator<Item = &Function> {
-		(0..self.overload_count()).map(|i| self.overload_by_index(i).unwrap())
+		(0..self.overload_count()).map(|i| {
+			self.overload_by_index(i)
+				.expect("index within overload_count should always be valid")
+		})
 	}
 }
