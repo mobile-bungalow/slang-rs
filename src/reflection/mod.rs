@@ -1,7 +1,9 @@
 mod decl;
 mod entry_point;
+mod error;
 mod function;
 mod generic;
+pub mod helpers;
 mod shader;
 mod ty;
 mod type_layout;
@@ -12,8 +14,10 @@ mod variable_layout;
 
 pub use decl::Decl;
 pub use entry_point::EntryPoint;
+pub use error::{AttributeError, ReflectionError};
 pub use function::Function;
 pub use generic::Generic;
+pub use helpers::SlangAttribute;
 pub use shader::Shader;
 pub use ty::Type;
 pub use type_layout::TypeLayout;

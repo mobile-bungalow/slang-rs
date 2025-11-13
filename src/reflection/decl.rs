@@ -7,7 +7,11 @@ pub struct Decl(sys::SlangReflectionDecl);
 impl Decl {
 	pub fn name(&self) -> Option<&str> {
 		let name = rcall!(spReflectionDecl_getName(self));
-		(!name.is_null()).then(|| unsafe { std::ffi::CStr::from_ptr(name).to_str().unwrap() })
+		(!name.is_null()).then(|| unsafe {
+			std::ffi::CStr::from_ptr(name)
+				.to_str()
+				.expect("Slang reflection API should return valid UTF-8 strings")
+		})
 	}
 
 	pub fn kind(&self) -> DeclKind {
@@ -23,7 +27,10 @@ impl Decl {
 	}
 
 	pub fn children(&self) -> impl ExactSizeIterator<Item = &Decl> {
-		(0..self.child_count()).map(|i| self.child_by_index(i).unwrap())
+		(0..self.child_count()).map(|i| {
+			self.child_by_index(i)
+				.expect("index within child_count should always be valid")
+		})
 	}
 
 	pub fn ty(&self) -> Option<&Type> {

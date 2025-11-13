@@ -2,6 +2,15 @@
 
 pub mod reflection;
 
+#[cfg(feature = "com_impls")]
+mod com_impls;
+#[cfg(feature = "com_impls")]
+pub use com_impls::{ComPtr, VecBlob};
+
+// Re-export derive macros when the derive feature is enabled
+#[cfg(feature = "derive")]
+pub use slang_derive::SlangAttribute;
+
 #[cfg(test)]
 mod tests;
 
@@ -25,6 +34,7 @@ pub use sys::{
 	slang_Modifier as Modifier,
 };
 
+#[macro_export]
 macro_rules! vcall {
 	($self:expr, $method:ident($($args:expr),*)) => {
 		unsafe { ($self.vtable().$method)($self.as_raw(), $($args),*) }
@@ -43,6 +53,7 @@ const fn uuid(data1: u32, data2: u16, data3: u16, data4: [u8; 8]) -> UUID {
 pub enum Error {
 	Code(sys::SlangResult),
 	Blob(Blob),
+	InvalidString(std::ffi::NulError),
 }
 
 impl std::fmt::Debug for Error {
@@ -50,6 +61,11 @@ impl std::fmt::Debug for Error {
 		match self {
 			Error::Code(code) => write!(f, "{}", code),
 			Error::Blob(blob) => write!(f, "{}", blob.as_str().unwrap_or_default()),
+			Error::InvalidString(e) => write!(
+				f,
+				"String contains null byte at position {} (CString requires null-terminated strings without interior nulls)",
+				e.nul_position()
+			),
 		}
 	}
 }
@@ -104,7 +120,7 @@ impl CapabilityID {
 	}
 }
 
-unsafe trait Interface: Sized {
+pub unsafe trait Interface: Sized {
 	type Vtable;
 	const IID: UUID;
 
@@ -224,14 +240,14 @@ impl GlobalSession {
 		)?)))
 	}
 
-	pub fn find_profile(&self, name: &str) -> ProfileID {
-		let name = CString::new(name).unwrap();
-		ProfileID(vcall!(self, findProfile(name.as_ptr())))
+	pub fn find_profile(&self, name: &str) -> Result<ProfileID> {
+		let name = CString::new(name).map_err(Error::InvalidString)?;
+		Ok(ProfileID(vcall!(self, findProfile(name.as_ptr()))))
 	}
 
-	pub fn find_capability(&self, name: &str) -> CapabilityID {
-		let name = CString::new(name).unwrap();
-		CapabilityID(vcall!(self, findCapability(name.as_ptr())))
+	pub fn find_capability(&self, name: &str) -> Result<CapabilityID> {
+		let name = CString::new(name).map_err(Error::InvalidString)?;
+		Ok(CapabilityID(vcall!(self, findCapability(name.as_ptr()))))
 	}
 
 	pub fn build_tag_string(&self) -> &str {
@@ -256,7 +272,7 @@ unsafe impl Interface for Session {
 
 impl Session {
 	pub fn load_module(&self, name: &str) -> Result<Module> {
-		let name = CString::new(name).unwrap();
+		let name = CString::new(name).map_err(Error::InvalidString)?;
 		let mut diagnostics = null_mut();
 
 		let module = vcall!(self, loadModule(name.as_ptr(), &mut diagnostics));
@@ -279,9 +295,9 @@ impl Session {
 		path: &str,
 		source: &str,
 	) -> Result<Module> {
-		let module_name = CString::new(module_name).unwrap();
-		let path = CString::new(path).unwrap();
-		let source = CString::new(source).unwrap();
+		let module_name = CString::new(module_name).map_err(Error::InvalidString)?;
+		let path = CString::new(path).map_err(Error::InvalidString)?;
+		let source = CString::new(source).map_err(Error::InvalidString)?;
 		let mut diagnostics = null_mut();
 
 		let module = vcall!(
@@ -306,14 +322,36 @@ impl Session {
 		}
 	}
 
+	#[cfg(feature = "com_impls")]
+	#[inline(always)]
+	pub fn load_module_from_ir_blob(
+		&self,
+		module_name: &str,
+		path: &str,
+		ir_blob: &impl com_impls::ImplementsISlangBlob,
+	) -> Result<Module> {
+		self.load_module_from_ir_blob_impl(module_name, path, ir_blob)
+	}
+
+	#[cfg(not(feature = "com_impls"))]
+	#[inline(always)]
 	pub fn load_module_from_ir_blob(
 		&self,
 		module_name: &str,
 		path: &str,
 		ir_blob: &Blob,
 	) -> Result<Module> {
-		let module_name = CString::new(module_name).unwrap();
-		let path = CString::new(path).unwrap();
+		self.load_module_from_ir_blob_impl(module_name, path, ir_blob)
+	}
+
+	fn load_module_from_ir_blob_impl(
+		&self,
+		module_name: &str,
+		path: &str,
+		ir_blob: &impl Interface,
+	) -> Result<Module> {
+		let module_name = CString::new(module_name).map_err(Error::InvalidString)?;
+		let path = CString::new(path).map_err(Error::InvalidString)?;
 		let mut diagnostics = null_mut();
 
 		let module = vcall!(
@@ -580,7 +618,7 @@ unsafe impl Downcast<ComponentType> for Module {
 
 impl Module {
 	pub fn find_entry_point_by_name(&self, name: &str) -> Option<EntryPoint> {
-		let name = CString::new(name).unwrap();
+		let name = CString::new(name).ok()?;
 		let mut entry_point = null_mut();
 		vcall!(self, findEntryPointByName(name.as_ptr(), &mut entry_point));
 		Some(EntryPoint(IUnknown(std::ptr::NonNull::new(
@@ -602,6 +640,35 @@ impl Module {
 
 	pub fn entry_points(&self) -> impl ExactSizeIterator<Item = EntryPoint> {
 		(0..self.entry_point_count()).map(|i| self.entry_point_by_index(i).unwrap())
+	}
+
+	pub fn serialize(&self) -> Result<Blob> {
+		let mut out_blob = null_mut();
+		let status_code = vcall!(self, serialize(&mut out_blob));
+		if status_code == 0 {
+			Ok(Blob(IUnknown(
+				std::ptr::NonNull::new(out_blob as *mut _)
+					.expect("Slang returned a null pointer despite reporting success"),
+			)))
+		} else {
+			Err(Error::Code(status_code))
+		}
+	}
+
+	pub fn write_to_file(&self, filename: impl AsRef<std::path::Path>) -> Result<()> {
+		let filename = CString::new(
+			filename
+				.as_ref()
+				.to_str()
+				.expect("filename argument must be CString-representable"),
+		)
+		.unwrap();
+		let status_code = vcall!(self, writeToFile(filename.as_ptr()));
+		if status_code == 0 {
+			Ok(())
+		} else {
+			Err(Error::Code(status_code))
+		}
 	}
 
 	pub fn name(&self) -> &str {
@@ -738,20 +805,20 @@ macro_rules! option {
 
 	($name:ident, $func:ident($p_name:ident: &str)) => {
 		#[inline(always)]
-		pub fn $func(self, $p_name: &str) -> Self {
+		pub fn $func(self, $p_name: &str) -> Result<Self> {
 			self.push_str1(CompilerOptionName::$name, $p_name)
 		}
 	};
 
 	($name:ident, $func:ident($p_name1:ident: &str, $p_name2:ident: &str)) => {
 		#[inline(always)]
-		pub fn $func(self, $p_name1: &str, $p_name2: &str) -> Self {
+		pub fn $func(self, $p_name1: &str, $p_name2: &str) -> Result<Self> {
 			self.push_str2(CompilerOptionName::$name, $p_name1, $p_name2)
 		}
 	};
 }
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct CompilerOptions {
 	strings: Vec<CString>,
 	options: Vec<sys::slang_CompilerOptionEntry>,
@@ -788,24 +855,24 @@ impl CompilerOptions {
 		self
 	}
 
-	fn push_str1(mut self, name: CompilerOptionName, s0: &str) -> Self {
-		let s0 = CString::new(s0).unwrap();
+	fn push_str1(mut self, name: CompilerOptionName, s0: &str) -> Result<Self> {
+		let s0 = CString::new(s0).map_err(Error::InvalidString)?;
 		let s0_ptr = s0.as_ptr();
 		self.strings.push(s0);
 
-		self.push_strings(name, s0_ptr, null())
+		Ok(self.push_strings(name, s0_ptr, null()))
 	}
 
-	fn push_str2(mut self, name: CompilerOptionName, s0: &str, s1: &str) -> Self {
-		let s0 = CString::new(s0).unwrap();
+	fn push_str2(mut self, name: CompilerOptionName, s0: &str, s1: &str) -> Result<Self> {
+		let s0 = CString::new(s0).map_err(Error::InvalidString)?;
 		let s0_ptr = s0.as_ptr();
 		self.strings.push(s0);
 
-		let s1 = CString::new(s1).unwrap();
+		let s1 = CString::new(s1).map_err(Error::InvalidString)?;
 		let s1_ptr = s1.as_ptr();
 		self.strings.push(s1);
 
-		self.push_strings(name, s0_ptr, s1_ptr)
+		Ok(self.push_strings(name, s0_ptr, s1_ptr))
 	}
 }
 

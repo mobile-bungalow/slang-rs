@@ -34,7 +34,10 @@ impl VariableLayout {
 	}
 
 	pub fn categories(&self) -> impl ExactSizeIterator<Item = ParameterCategory> {
-		(0..self.category_count()).map(|i| self.category_by_index(i).unwrap())
+		(0..self.category_count()).map(|i| {
+			self.category_by_index(i)
+				.expect("index within category_count should always be valid")
+		})
 	}
 
 	pub fn offset(&self, category: ParameterCategory) -> usize {
@@ -63,7 +66,11 @@ impl VariableLayout {
 
 	pub fn semantic_name(&self) -> Option<&str> {
 		let name = rcall!(spReflectionVariableLayout_GetSemanticName(self));
-		(!name.is_null()).then(|| unsafe { std::ffi::CStr::from_ptr(name).to_str().unwrap() })
+		(!name.is_null()).then(|| unsafe {
+			std::ffi::CStr::from_ptr(name)
+				.to_str()
+				.expect("Slang reflection API should return valid UTF-8 strings")
+		})
 	}
 
 	pub fn semantic_index(&self) -> usize {

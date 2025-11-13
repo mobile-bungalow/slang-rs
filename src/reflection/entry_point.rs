@@ -22,7 +22,10 @@ impl EntryPoint {
 	}
 
 	pub fn parameters(&self) -> impl ExactSizeIterator<Item = &VariableLayout> {
-		(0..self.parameter_count()).map(|i| self.parameter_by_index(i).unwrap())
+		(0..self.parameter_count()).map(|i| {
+			self.parameter_by_index(i)
+				.expect("index within parameter_count should always be valid")
+		})
 	}
 
 	pub fn function(&self) -> Option<&Function> {
