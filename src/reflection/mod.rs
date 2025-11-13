@@ -27,9 +27,29 @@ pub use variable::Variable;
 pub use variable_layout::VariableLayout;
 
 use super::sys;
+use std::ffi::CString;
 
 pub fn compute_string_hash(string: &str) -> u32 {
 	rcall!(spComputeStringHash(string, string.len()))
+}
+
+/// Helper trait to convert strings to CString with proper error handling
+trait ToCStringResult {
+	fn to_cstring_result(self) -> Result<CString, ReflectionError>;
+}
+
+impl ToCStringResult for &str {
+	fn to_cstring_result(self) -> Result<CString, ReflectionError> {
+		CString::new(self).map_err(|e| ReflectionError::InvalidString {
+			position: e.nul_position(),
+		})
+	}
+}
+
+/// Helper function to convert a string to CString with proper error mapping
+#[inline]
+pub(crate) fn to_cstring(s: &str) -> Result<CString, ReflectionError> {
+	s.to_cstring_result()
 }
 
 macro_rules! rcall {

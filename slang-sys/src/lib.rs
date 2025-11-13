@@ -2,6 +2,7 @@
 
 #![cfg_attr(rustfmt, rustfmt_skip)]
 #![allow(non_camel_case_types, non_snake_case, non_upper_case_globals)]
+#![allow(clippy::missing_safety_doc, clippy::ptr_offset_with_cast, clippy::useless_transmute)]
 include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 
 use std::ffi::{c_char, c_int, c_void};

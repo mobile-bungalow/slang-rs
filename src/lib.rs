@@ -36,9 +36,12 @@ pub use sys::{
 
 #[macro_export]
 macro_rules! vcall {
-	($self:expr, $method:ident($($args:expr),*)) => {
-		unsafe { ($self.vtable().$method)($self.as_raw(), $($args),*) }
-	};
+	($self:expr, $method:ident($($args:expr),*)) => {{
+		let self_ref = $self;
+		let vtable = unsafe { self_ref.vtable() };
+		let raw = unsafe { self_ref.as_raw() };
+		unsafe { (vtable.$method)(raw, $($args),*) }
+	}};
 }
 
 const fn uuid(data1: u32, data2: u16, data3: u16, data4: [u8; 8]) -> UUID {
@@ -63,7 +66,7 @@ impl std::fmt::Debug for Error {
 			Error::Blob(blob) => write!(f, "{}", blob.as_str().unwrap_or_default()),
 			Error::InvalidString(e) => write!(
 				f,
-				"String contains null byte at position {} (CString requires null-terminated strings without interior nulls)",
+				"String contains null byte at position {} - pass an input that can be used accross FFI.",
 				e.nul_position()
 			),
 		}
@@ -120,15 +123,35 @@ impl CapabilityID {
 	}
 }
 
+/// Trait for COM-like interface types used in Slang FFI.
+///
+/// # Safety
+///
+/// Implementors must ensure:
+/// - The type has the same memory layout as a pointer to its vtable
+/// - The vtable pointer is valid for the lifetime of the object
+/// - The type correctly implements the COM interface contract
 pub unsafe trait Interface: Sized {
 	type Vtable;
 	const IID: UUID;
 
+	/// Returns a reference to the interface's vtable.
+	///
+	/// # Safety
+	///
+	/// The caller must ensure that `self` points to a valid interface object
+	/// with a valid vtable pointer.
 	#[inline(always)]
 	unsafe fn vtable(&self) -> &Self::Vtable {
-		unsafe { &**(self.as_raw() as *mut *mut Self::Vtable) }
+		unsafe { &**self.as_raw::<*mut Self::Vtable>() }
 	}
 
+	/// Returns the raw pointer to this interface object.
+	///
+	/// # Safety
+	///
+	/// The caller must ensure that the returned pointer is used correctly
+	/// according to COM interface semantics and not outlive the object.
 	#[inline(always)]
 	unsafe fn as_raw<T>(&self) -> *mut T {
 		unsafe { std::mem::transmute_copy(self) }
@@ -140,6 +163,12 @@ pub unsafe trait Interface: Sized {
 	}
 }
 
+/// Trait for safe downcasting between related interface types.
+///
+/// # Safety
+///
+/// Implementors must ensure that the target type `T` is a valid downcast
+/// target with compatible memory layout and semantics.
 pub unsafe trait Downcast<T> {
 	fn downcast(&self) -> &T;
 }
@@ -428,7 +457,7 @@ impl Metadata {
 			self,
 			isParameterLocationUsed(category, space_index, register_index, &mut used)
 		);
-		succeeded(result).then(|| used)
+		succeeded(result).then_some(used)
 	}
 }
 
@@ -687,11 +716,11 @@ impl Module {
 	}
 
 	pub fn dependency_file_count(&self) -> i32 {
-		vcall!(self, getDependencyFileCount()) as i32
+		vcall!(self, getDependencyFileCount())
 	}
 
 	pub fn dependency_file_path(&self, index: i32) -> &str {
-		let path = vcall!(self, getDependencyFilePath(index as i32));
+		let path = vcall!(self, getDependencyFilePath(index));
 		unsafe { CStr::from_ptr(path).to_str().unwrap() }
 	}
 

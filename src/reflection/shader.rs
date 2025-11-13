@@ -1,6 +1,6 @@
 use super::{
 	EntryPoint, Function, Generic, ReflectionError, Type, TypeLayout, TypeParameter, Variable,
-	VariableLayout, rcall,
+	VariableLayout, rcall, to_cstring,
 };
 use crate::{GenericArg, GenericArgType, LayoutRules, sys};
 
@@ -42,9 +42,7 @@ impl Shader {
 		&self,
 		name: &str,
 	) -> Result<&TypeParameter, ReflectionError> {
-		let cname = std::ffi::CString::new(name).map_err(|e| ReflectionError::InvalidString {
-			position: e.nul_position(),
-		})?;
+		let cname = to_cstring(name)?;
 		rcall!(spReflection_FindTypeParameter(self, cname.as_ptr()) as Option<&TypeParameter>)
 			.ok_or_else(|| ReflectionError::NotFound(format!("Type parameter '{}'", name)))
 	}
@@ -65,9 +63,7 @@ impl Shader {
 	}
 
 	pub fn find_entry_point_by_name(&self, name: &str) -> Result<&EntryPoint, ReflectionError> {
-		let cname = std::ffi::CString::new(name).map_err(|e| ReflectionError::InvalidString {
-			position: e.nul_position(),
-		})?;
+		let cname = to_cstring(name)?;
 		rcall!(spReflection_findEntryPointByName(self, cname.as_ptr()) as Option<&EntryPoint>)
 			.ok_or_else(|| ReflectionError::NotFound(format!("Entry point '{}'", name)))
 	}
@@ -81,17 +77,13 @@ impl Shader {
 	}
 
 	pub fn find_type_by_name(&self, name: &str) -> Result<&Type, ReflectionError> {
-		let cname = std::ffi::CString::new(name).map_err(|e| ReflectionError::InvalidString {
-			position: e.nul_position(),
-		})?;
+		let cname = to_cstring(name)?;
 		rcall!(spReflection_FindTypeByName(self, cname.as_ptr()) as Option<&Type>)
 			.ok_or_else(|| ReflectionError::NotFound(format!("Type '{}'", name)))
 	}
 
 	pub fn find_function_by_name(&self, name: &str) -> Result<&Function, ReflectionError> {
-		let cname = std::ffi::CString::new(name).map_err(|e| ReflectionError::InvalidString {
-			position: e.nul_position(),
-		})?;
+		let cname = to_cstring(name)?;
 		rcall!(spReflection_FindFunctionByName(self, cname.as_ptr()) as Option<&Function>)
 			.ok_or_else(|| ReflectionError::NotFound(format!("Function '{}'", name)))
 	}
@@ -101,9 +93,7 @@ impl Shader {
 		ty: &Type,
 		name: &str,
 	) -> Result<&Function, ReflectionError> {
-		let cname = std::ffi::CString::new(name).map_err(|e| ReflectionError::InvalidString {
-			position: e.nul_position(),
-		})?;
+		let cname = to_cstring(name)?;
 		rcall!(
 			spReflection_FindFunctionByNameInType(self, ty as *const _ as *mut _, cname.as_ptr())
 				as Option<&Function>
@@ -116,9 +106,7 @@ impl Shader {
 		ty: &Type,
 		name: &str,
 	) -> Result<&Variable, ReflectionError> {
-		let cname = std::ffi::CString::new(name).map_err(|e| ReflectionError::InvalidString {
-			position: e.nul_position(),
-		})?;
+		let cname = to_cstring(name)?;
 		rcall!(
 			spReflection_FindVarByNameInType(self, ty as *const _ as *mut _, cname.as_ptr())
 				as Option<&Variable>
@@ -176,7 +164,7 @@ impl Shader {
 		let result = rcall!(spReflection_getHashedString(self, index, &mut len));
 
 		(!result.is_null()).then(|| {
-			let slice = unsafe { std::slice::from_raw_parts(result as *const u8, len as usize) };
+			let slice = unsafe { std::slice::from_raw_parts(result as *const u8, len) };
 			std::str::from_utf8(slice)
 				.expect("Slang reflection API should return valid UTF-8 strings")
 		})

@@ -1,4 +1,4 @@
-use super::{Generic, ReflectionError, UserAttribute, Variable, rcall};
+use super::{Generic, ReflectionError, UserAttribute, Variable, rcall, to_cstring};
 use crate::{
 	Blob, Error, IUnknown, ResourceAccess, ResourceShape, Result, ScalarType, TypeKind, succeeded,
 	sys,
@@ -127,9 +127,7 @@ impl Type {
 		&self,
 		name: &str,
 	) -> std::result::Result<&UserAttribute, ReflectionError> {
-		let cname = std::ffi::CString::new(name).map_err(|e| ReflectionError::InvalidString {
-			position: e.nul_position(),
-		})?;
+		let cname = to_cstring(name)?;
 		rcall!(
 			spReflectionType_FindUserAttributeByName(self, cname.as_ptr())
 				as Option<&UserAttribute>

@@ -9,46 +9,46 @@ fn generate_field_extraction(field_type: &Type, index: usize) -> proc_macro2::To
 	let index_u32 = index as u32;
 
 	// Check if it's a known type
-	if let Type::Path(type_path) = field_type {
-		if let Some(segment) = type_path.path.segments.last() {
-			let type_name = segment.ident.to_string();
+	if let Type::Path(type_path) = field_type
+		&& let Some(segment) = type_path.path.segments.last()
+	{
+		let type_name = segment.ident.to_string();
 
-			// Handle String
-			if type_name == "String" {
-				return quote! {
-					attr.argument_value_string(#index_u32)
-						.ok_or_else(|| ::shader_slang::reflection::AttributeError::InvalidValue(
-							format!("Missing or invalid string value at argument {}", #index_u32)
-						))?
-						.to_string()
-				};
-			}
-
-			// Handle f32
-			if type_name == "f32" {
-				return quote! {
-					attr.argument_value_float(#index_u32)
-						.ok_or_else(|| ::shader_slang::reflection::AttributeError::InvalidValue(
-							format!("Missing or invalid f32 value at argument {}", #index_u32)
-						))?
-				};
-			}
-
-			// Handle i32
-			if type_name == "i32" {
-				return quote! {
-					attr.argument_value_int(#index_u32)
-						.ok_or_else(|| ::shader_slang::reflection::AttributeError::InvalidValue(
-							format!("Missing or invalid i32 value at argument {}", #index_u32)
-						))?
-				};
-			}
-
-			// Unsupported type
+		// Handle String
+		if type_name == "String" {
 			return quote! {
-				compile_error!("Only String, f32, and i32 types are supported in SlangAttribute")
+				attr.argument_value_string(#index_u32)
+					.ok_or_else(|| ::shader_slang::reflection::AttributeError::InvalidValue(
+						format!("Missing or invalid string value at argument {}", #index_u32)
+					))?
+					.to_string()
 			};
 		}
+
+		// Handle f32
+		if type_name == "f32" {
+			return quote! {
+				attr.argument_value_float(#index_u32)
+					.ok_or_else(|| ::shader_slang::reflection::AttributeError::InvalidValue(
+						format!("Missing or invalid f32 value at argument {}", #index_u32)
+					))?
+			};
+		}
+
+		// Handle i32
+		if type_name == "i32" {
+			return quote! {
+				attr.argument_value_int(#index_u32)
+					.ok_or_else(|| ::shader_slang::reflection::AttributeError::InvalidValue(
+						format!("Missing or invalid i32 value at argument {}", #index_u32)
+					))?
+			};
+		}
+
+		// Unsupported type
+		return quote! {
+			compile_error!("Only String, f32, and i32 types are supported in SlangAttribute")
+		};
 	}
 
 	// Fallback error
@@ -60,19 +60,19 @@ fn generate_field_extraction(field_type: &Type, index: usize) -> proc_macro2::To
 /// Extract the name attribute value from the derive input
 fn extract_name_attribute(input: &DeriveInput) -> Option<String> {
 	for attr in &input.attrs {
-		if attr.path().is_ident("slang") {
-			if let Meta::List(meta_list) = &attr.meta {
-				// Parse the tokens inside #[slang(...)]
-				let nested = meta_list.parse_args::<Meta>().ok()?;
-				if let Meta::NameValue(name_value) = nested {
-					if name_value.path.is_ident("name") {
-						// The value is an Expr, extract string literal from it
-						if let syn::Expr::Lit(expr_lit) = &name_value.value {
-							if let Lit::Str(lit_str) = &expr_lit.lit {
-								return Some(lit_str.value());
-							}
-						}
-					}
+		if attr.path().is_ident("slang")
+			&& let Meta::List(meta_list) = &attr.meta
+		{
+			// Parse the tokens inside #[slang(...)]
+			let nested = meta_list.parse_args::<Meta>().ok()?;
+			if let Meta::NameValue(name_value) = nested
+				&& name_value.path.is_ident("name")
+			{
+				// The value is an Expr, extract string literal from it
+				if let syn::Expr::Lit(expr_lit) = &name_value.value
+					&& let Lit::Str(lit_str) = &expr_lit.lit
+				{
+					return Some(lit_str.value());
 				}
 			}
 		}
@@ -173,11 +173,11 @@ pub fn derive_slang_attribute(input: TokenStream) -> TokenStream {
 						}
 					}
 					_ => {
-						return syn::Error::new_spanned(
+						syn::Error::new_spanned(
 							variant,
 							"Enum variants must have exactly one unnamed field (e.g., Variant(InnerType))",
 						)
-						.to_compile_error();
+						.to_compile_error()
 					}
 				}
 			});

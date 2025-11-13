@@ -1,3 +1,5 @@
+// Suppress clippy warnings for build script
+#![allow(clippy::all)]
 //////
 //
 // Language config

@@ -1,4 +1,4 @@
-use super::{Generic, ReflectionError, Type, UserAttribute, Variable, rcall};
+use super::{Generic, ReflectionError, Type, UserAttribute, Variable, rcall, to_cstring};
 use crate::{GlobalSession, Modifier, ModifierID, sys};
 
 #[repr(transparent)]
@@ -48,9 +48,7 @@ impl Function {
 		global_session: &GlobalSession,
 		name: &str,
 	) -> Result<&UserAttribute, ReflectionError> {
-		let cname = std::ffi::CString::new(name).map_err(|e| ReflectionError::InvalidString {
-			position: e.nul_position(),
-		})?;
+		let cname = to_cstring(name)?;
 		rcall!(spReflectionFunction_FindUserAttributeByName(
 			self,
 			global_session as *const _ as *mut _,
